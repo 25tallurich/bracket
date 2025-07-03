@@ -1,18 +1,58 @@
 "use client"
-
 import React, { useState, useEffect } from 'react';
 import { ChevronRight, Trophy, Users, Shuffle, Play, X, Plus, Moon, Sun } from 'lucide-react';
 
-const TournamentBracket = () => {
-  const [participants, setParticipants] = useState([]);
-  const [bracket, setBracket] = useState([]);
-  const [currentInput, setCurrentInput] = useState('');
-  const [isSetupComplete, setIsSetupComplete] = useState(false);
-  const [currentRound, setCurrentRound] = useState(0);
-  const [isDarkMode, setIsDarkMode] = useState(false);
+// Type definitions
+interface Match {
+  id: string;
+  player1: string | null;
+  player2: string | null;
+  winner: string | null;
+  completed: boolean;
+  isBye: boolean;
+}
+
+type Round = Match[];
+type Bracket = Round[];
+
+interface Theme {
+  background: string;
+  card: string;
+  cardBorder: string;
+  text: string;
+  textSecondary: string;
+  textMuted: string;
+  input: string;
+  participantBg: string;
+  participantHover: string;
+  matchInactive: string;
+  matchActive: string;
+  matchCompleted: string;
+  matchBye: string;
+  playerHover: string;
+  playerCompleted: string;
+  buttonPrimary: string;
+  buttonSecondary: string;
+  buttonSuccess: string;
+  themeToggle: string;
+  themeIcon: string;
+}
+
+interface Themes {
+  light: Theme;
+  dark: Theme;
+}
+
+const TournamentBracket: React.FC = () => {
+  const [participants, setParticipants] = useState<string[]>([]);
+  const [bracket, setBracket] = useState<Bracket>([]);
+  const [currentInput, setCurrentInput] = useState<string>('');
+  const [isSetupComplete, setIsSetupComplete] = useState<boolean>(false);
+  const [currentRound, setCurrentRound] = useState<number>(0);
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
 
   // Theme configurations
-  const themes = {
+  const themes: Themes = {
     light: {
       background: 'bg-gradient-to-br from-blue-50 to-purple-50',
       card: 'bg-white',
@@ -74,23 +114,23 @@ const TournamentBracket = () => {
   }, []);
 
   // Toggle theme
-  const toggleTheme = () => {
+  const toggleTheme = (): void => {
     const newMode = !isDarkMode;
     setIsDarkMode(newMode);
     localStorage.setItem('bracketTheme', newMode ? 'dark' : 'light');
   };
 
   // Get next power of 2
-  const getNextPowerOfTwo = (n) => {
+  const getNextPowerOfTwo = (n: number): number => {
     return Math.pow(2, Math.ceil(Math.log2(n)));
   };
 
   // Initialize bracket structure with proper BYE handling
-  const initializeBracket = (players) => {
-    const rounds = [];
+  const initializeBracket = (players: string[]): Bracket => {
+    const rounds: Bracket = [];
     const nextPowerOfTwo = getNextPowerOfTwo(players.length);
     
-    let currentRoundPlayers = [...players];
+    let currentRoundPlayers: (string | null)[] = [...players];
     const byesNeeded = nextPowerOfTwo - players.length;
     
     for (let i = 0; i < byesNeeded; i++) {
@@ -98,15 +138,15 @@ const TournamentBracket = () => {
     }
     
     while (currentRoundPlayers.length > 1) {
-      const matches = [];
+      const matches: Round = [];
       for (let i = 0; i < currentRoundPlayers.length; i += 2) {
         const player1 = currentRoundPlayers[i];
         const player2 = currentRoundPlayers[i + 1];
         
-        const match = {
+        const match: Match = {
           id: `match-${rounds.length}-${i/2}`,
           player1: player1,
-          player2: player2,
+          player2: player2 || null,
           winner: null,
           completed: false,
           isBye: player1 === 'BYE' || player2 === 'BYE'
@@ -121,14 +161,14 @@ const TournamentBracket = () => {
       }
       rounds.push(matches);
       
-      currentRoundPlayers = matches.map(match => match.winner || null);
+      currentRoundPlayers = matches.map(match => match.winner);
     }
     
     return rounds;
   };
 
   // Shuffle array function
-  const shuffleArray = (array) => {
+  const shuffleArray = <T,>(array: T[]): T[] => {
     const shuffled = [...array];
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -138,7 +178,7 @@ const TournamentBracket = () => {
   };
 
   // Add participant
-  const addParticipant = () => {
+  const addParticipant = (): void => {
     if (currentInput.trim() && !participants.includes(currentInput.trim())) {
       setParticipants([...participants, currentInput.trim()]);
       setCurrentInput('');
@@ -146,12 +186,12 @@ const TournamentBracket = () => {
   };
 
   // Remove participant
-  const removeParticipant = (index) => {
+  const removeParticipant = (index: number): void => {
     setParticipants(participants.filter((_, i) => i !== index));
   };
 
   // Start tournament
-  const startTournament = () => {
+  const startTournament = (): void => {
     if (participants.length < 2) return;
     
     const realPlayers = participants.filter(p => p !== 'BYE');
@@ -164,7 +204,7 @@ const TournamentBracket = () => {
   };
 
   // Select winner
-  const selectWinner = (roundIndex, matchIndex, winner) => {
+  const selectWinner = (roundIndex: number, matchIndex: number, winner: string): void => {
     const newBracket = [...bracket];
     const match = newBracket[roundIndex][matchIndex];
     
@@ -193,14 +233,14 @@ const TournamentBracket = () => {
   };
 
   // Reset tournament
-  const resetTournament = () => {
+  const resetTournament = (): void => {
     setIsSetupComplete(false);
     setBracket([]);
     setCurrentRound(0);
   };
 
   // Get round name
-  const getRoundName = (roundIndex, totalRounds) => {
+  const getRoundName = (roundIndex: number, totalRounds: number): string => {
     if (roundIndex === totalRounds - 1) return 'Final';
     if (roundIndex === totalRounds - 2) return 'Semi-Final';
     if (roundIndex === totalRounds - 3) return 'Quarter-Final';
@@ -208,14 +248,14 @@ const TournamentBracket = () => {
   };
 
   // Check if tournament is complete
-  const isTournamentComplete = () => {
+  const isTournamentComplete = (): boolean => {
     return bracket.length > 0 && bracket[bracket.length - 1][0]?.completed;
   };
 
   const champion = isTournamentComplete() ? bracket[bracket.length - 1][0].winner : null;
 
   // Theme Toggle Button Component
-  const ThemeToggle = () => (
+  const ThemeToggle: React.FC = () => (
     <button
       onClick={toggleTheme}
       className={`fixed top-4 right-4 p-3 ${theme.themeToggle} rounded-full shadow-lg hover:shadow-xl transition-all duration-300 border z-50`}
@@ -249,8 +289,8 @@ const TournamentBracket = () => {
               <input
                 type="text"
                 value={currentInput}
-                onChange={(e) => setCurrentInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && addParticipant()}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCurrentInput(e.target.value)}
+                onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && addParticipant()}
                 placeholder="Enter participant name"
                 className={`flex-1 px-4 py-3 ${theme.input} border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
               />
@@ -369,7 +409,7 @@ const TournamentBracket = () => {
                         <div>
                           {match.player1 && match.player1 !== 'BYE' && (
                             <button
-                              onClick={() => !match.completed && selectWinner(roundIndex, matchIndex, match.player1)}
+                              onClick={() => !match.completed && match.player1 && selectWinner(roundIndex, matchIndex, match.player1)}
                               disabled={match.completed || !match.player2 || match.player2 === 'BYE'}
                               className={`w-full px-6 py-4 text-left transition-all duration-200 border-b ${isDarkMode ? 'border-gray-600' : 'border-gray-200'} ${
                                 match.winner === match.player1
@@ -390,7 +430,7 @@ const TournamentBracket = () => {
                           
                           {match.player2 && match.player2 !== 'BYE' && (
                             <button
-                              onClick={() => !match.completed && selectWinner(roundIndex, matchIndex, match.player2)}
+                              onClick={() => !match.completed && match.player2 && selectWinner(roundIndex, matchIndex, match.player2)}
                               disabled={match.completed || !match.player1 || match.player1 === 'BYE'}
                               className={`w-full px-6 py-4 text-left transition-all duration-200 ${
                                 match.winner === match.player2
