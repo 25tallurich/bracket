@@ -1,7 +1,6 @@
 "use client"
-
 import React, { useState, useEffect } from 'react';
-import { ChevronRight, Trophy, Users, Shuffle, Play } from 'lucide-react';
+import { ChevronRight, Trophy, Users, Shuffle, Play, X, Plus } from 'lucide-react';
 
 const TournamentBracket = () => {
   const [participants, setParticipants] = useState([]);
@@ -152,58 +151,71 @@ const TournamentBracket = () => {
 
   const champion = isTournamentComplete() ? bracket[bracket.length - 1][0].winner : null;
 
+  // Setup page
   if (!isSetupComplete) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4">
         <div className="max-w-2xl mx-auto">
-          <div className="text-center mb-8">
-            <Trophy className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
-            <h1 className="text-4xl font-bold text-gray-800 mb-2">Tournament Bracket</h1>
-            <p className="text-gray-600">Set up your tournament participants</p>
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full shadow-lg mb-6">
+              <Trophy className="w-10 h-10 text-white" />
+            </div>
+            <h1 className="text-5xl font-bold text-gray-800 mb-3">Tournament Bracket</h1>
+            <p className="text-xl text-gray-600">Create your championship journey</p>
           </div>
           
-          <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-            <div className="flex gap-2 mb-4">
+          <div className="bg-white rounded-2xl shadow-xl p-8 mb-6 border border-gray-100">
+            <h2 className="text-2xl font-semibold text-gray-800 mb-6">Add Participants</h2>
+            <div className="flex gap-3 mb-6">
               <input
                 type="text"
                 value={currentInput}
                 onChange={(e) => setCurrentInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && addParticipant()}
                 placeholder="Enter participant name"
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 px-4 py-3 text-gray-900 placeholder-gray-500 bg-white border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               />
               <button
                 onClick={addParticipant}
-                className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl hover:from-blue-600 hover:to-purple-700 transition-all shadow-md hover:shadow-lg flex items-center gap-2"
               >
+                <Plus className="w-5 h-5" />
                 Add
               </button>
             </div>
             
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-6">
+            <div className="space-y-2 mb-8 max-h-96 overflow-y-auto">
               {participants.map((participant, index) => (
-                <div key={index} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
-                  <span className="font-medium">{participant}</span>
+                <div key={index} className="flex items-center justify-between bg-gradient-to-r from-gray-50 to-gray-100 p-4 rounded-xl hover:from-gray-100 hover:to-gray-200 transition-all group">
+                  <span className="font-medium text-gray-800">{participant}</span>
                   <button
                     onClick={() => removeParticipant(index)}
-                    className="text-red-500 hover:text-red-700 text-sm"
+                    className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all"
                   >
-                    Remove
+                    <X className="w-5 h-5" />
                   </button>
                 </div>
               ))}
+              {participants.length === 0 && (
+                <div className="text-center py-12 text-gray-400">
+                  <Users className="w-16 h-16 mx-auto mb-4 opacity-30" />
+                  <p>No participants yet. Add some players to get started!</p>
+                </div>
+              )}
             </div>
             
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-gray-600">
-                <Users className="w-5 h-5" />
-                <span>{participants.length} participants</span>
+            <div className="flex items-center justify-between pt-6 border-t border-gray-200">
+              <div className="flex items-center gap-3 text-gray-600">
+                <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-full">
+                  <Users className="w-5 h-5 text-blue-600" />
+                </div>
+                <span className="font-medium">{participants.length} participants</span>
               </div>
               
               <button
                 onClick={startTournament}
                 disabled={participants.length < 2}
-                className="flex items-center gap-2 px-6 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                className="flex items-center gap-3 px-8 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:from-green-600 hover:to-emerald-700 disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg disabled:shadow-none"
               >
                 <Shuffle className="w-5 h-5" />
                 Start Tournament
@@ -215,131 +227,113 @@ const TournamentBracket = () => {
     );
   }
 
+  // Bracket view
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-full mx-auto">
         <div className="text-center mb-8">
-          <Trophy className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">Tournament Bracket</h1>
-          <div className="flex justify-center gap-4">
-            <button
-              onClick={resetTournament}
-              className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
-            >
-              Reset Tournament
-            </button>
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full shadow-lg mb-4">
+            <Trophy className="w-8 h-8 text-white" />
           </div>
+          <h1 className="text-4xl font-bold text-gray-800 mb-4">Tournament Bracket</h1>
+          <button
+            onClick={resetTournament}
+            className="px-6 py-2 bg-gradient-to-r from-gray-500 to-gray-600 text-white rounded-xl hover:from-gray-600 hover:to-gray-700 transition-all shadow-md hover:shadow-lg"
+          >
+            Reset Tournament
+          </button>
         </div>
 
         {champion && (
           <div className="text-center mb-8">
-            <div className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-white p-6 rounded-lg shadow-lg max-w-md mx-auto">
-              <Trophy className="w-16 h-16 mx-auto mb-4" />
-              <h2 className="text-2xl font-bold mb-2">🏆 Champion! 🏆</h2>
-              <p className="text-xl font-semibold">{champion}</p>
+            <div className="bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 text-white p-8 rounded-2xl shadow-2xl max-w-md mx-auto transform hover:scale-105 transition-transform">
+              <Trophy className="w-20 h-20 mx-auto mb-4 animate-bounce" />
+              <h2 className="text-3xl font-bold mb-3">🎉 Champion! 🎉</h2>
+              <p className="text-2xl font-bold">{champion}</p>
             </div>
           </div>
         )}
 
-        <div className="bg-white rounded-lg shadow-lg p-6 overflow-x-auto">
-          <div className="flex gap-8 min-w-max relative">
+        <div className="bg-white rounded-2xl shadow-xl p-8 overflow-x-auto border border-gray-100">
+          <div className="flex items-stretch gap-8 min-w-max">
             {bracket.map((round, roundIndex) => (
-              <div key={roundIndex} className="flex flex-col min-w-[250px] relative">
-                <h3 className="text-lg font-semibold text-center mb-4 text-gray-700">
+              <div key={roundIndex} className="flex flex-col">
+                <h3 className="text-xl font-bold text-center mb-6 text-gray-700">
                   {getRoundName(roundIndex, bracket.length)}
                 </h3>
                 
-                {/* Calculate spacing for centering */}
-                <div 
-                  className="flex flex-col justify-center gap-4 relative"
-                  style={{
-                    height: `${bracket[0].length * 120}px`,
-                    paddingTop: `${Math.pow(2, roundIndex) * 20}px`
-                  }}
-                >
+                <div className="flex flex-col justify-around flex-1 gap-4">
                   {round.map((match, matchIndex) => (
-                    <div key={match.id} className="relative">
-                      <div
-                        className={`border-2 rounded-lg p-4 transition-all duration-300 relative ${
-                          match.completed
-                            ? match.isBye
-                              ? 'border-yellow-300 bg-yellow-50'
-                              : 'border-green-300 bg-green-50'
-                            : roundIndex === currentRound
-                            ? 'border-blue-300 bg-blue-50'
-                            : 'border-gray-200 bg-gray-50'
-                        }`}
-                        style={{
-                          marginBottom: `${Math.pow(2, roundIndex + 1) * 20}px`
-                        }}
-                      >
-                        {match.isBye ? (
-                          <div className="text-center py-6">
-                            <div className="text-lg font-semibold text-yellow-600 mb-2">
-                              {match.winner}
-                            </div>
-                            <div className="text-sm text-yellow-500 bg-yellow-100 px-3 py-1 rounded-full inline-block">
-                              🎯 Bye - Advances Automatically
-                            </div>
+                    <div
+                      key={match.id}
+                      className={`relative rounded-xl overflow-hidden transition-all duration-300 shadow-lg hover:shadow-xl w-72 ${
+                        match.completed
+                          ? match.isBye
+                            ? 'bg-gradient-to-r from-yellow-100 to-orange-100 border-2 border-yellow-300'
+                            : 'bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300'
+                          : roundIndex === currentRound
+                          ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-300'
+                          : 'bg-white border-2 border-gray-200'
+                      }`}
+                    >
+                      {match.isBye ? (
+                        <div className="p-6 text-center">
+                          <div className="text-xl font-bold text-yellow-700 mb-2">
+                            {match.winner}
                           </div>
-                        ) : (
-                          <div className="space-y-2">
-                            {match.player1 && match.player1 !== 'BYE' && (
-                              <button
-                                onClick={() => !match.completed && selectWinner(roundIndex, matchIndex, match.player1)}
-                                disabled={match.completed || !match.player2 || match.player2 === 'BYE'}
-                                className={`w-full p-3 rounded-lg text-left transition-all duration-200 ${
-                                  match.winner === match.player1
-                                    ? 'bg-green-500 text-white font-semibold'
-                                    : match.completed
-                                    ? 'bg-gray-200 text-gray-500'
-                                    : 'bg-white border-2 border-gray-200 hover:border-blue-300 hover:bg-blue-50'
-                                }`}
-                              >
-                                {match.player1}
-                              </button>
-                            )}
-                            
-                            {match.player1 && match.player1 !== 'BYE' && match.player2 && match.player2 !== 'BYE' && (
-                              <div className="text-center text-gray-400 text-sm">vs</div>
-                            )}
-                            
-                            {match.player2 && match.player2 !== 'BYE' && (
-                              <button
-                                onClick={() => !match.completed && selectWinner(roundIndex, matchIndex, match.player2)}
-                                disabled={match.completed || !match.player1 || match.player1 === 'BYE'}
-                                className={`w-full p-3 rounded-lg text-left transition-all duration-200 ${
-                                  match.winner === match.player2
-                                    ? 'bg-green-500 text-white font-semibold'
-                                    : match.completed
-                                    ? 'bg-gray-200 text-gray-500'
-                                    : 'bg-white border-2 border-gray-200 hover:border-blue-300 hover:bg-blue-50'
-                                }`}
-                              >
-                                {match.player2}
-                              </button>
-                            )}
+                          <div className="text-sm text-yellow-600 bg-yellow-200 px-4 py-1 rounded-full inline-block">
+                            Advances (Bye)
                           </div>
-                        )}
-                      </div>
-                      
-                      {/* Connection lines to next round */}
-                      {roundIndex < bracket.length - 1 && (
-                        <div className="absolute top-1/2 -right-8 w-8 h-0.5 bg-gray-300 transform -translate-y-1/2">
-                          <div className="absolute -right-0.5 -top-0.5 w-1 h-1 bg-gray-300 rounded-full"></div>
                         </div>
-                      )}
-                      
-                      {/* Vertical connecting lines */}
-                      {roundIndex < bracket.length - 1 && matchIndex % 2 === 0 && matchIndex + 1 < round.length && (
-                        <div
-                          className="absolute top-1/2 -right-8 w-8 border-r-2 border-gray-300"
-                          style={{
-                            height: `${Math.pow(2, roundIndex + 1) * 20 + 80}px`,
-                            transform: 'translateY(-50%)'
-                          }}
-                        >
-                          <div className="absolute right-0 top-1/2 w-8 h-0.5 bg-gray-300 transform -translate-y-1/2"></div>
+                      ) : (
+                        <div>
+                          {match.player1 && match.player1 !== 'BYE' && (
+                            <button
+                              onClick={() => !match.completed && selectWinner(roundIndex, matchIndex, match.player1)}
+                              disabled={match.completed || !match.player2 || match.player2 === 'BYE'}
+                              className={`w-full px-6 py-4 text-left transition-all duration-200 border-b border-gray-200 ${
+                                match.winner === match.player1
+                                  ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold'
+                                  : match.completed
+                                  ? 'bg-gray-100 text-gray-400'
+                                  : 'hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 cursor-pointer text-gray-800'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <span>{match.player1}</span>
+                                {match.winner === match.player1 && (
+                                  <Trophy className="w-5 h-5" />
+                                )}
+                              </div>
+                            </button>
+                          )}
+                          
+                          {match.player2 && match.player2 !== 'BYE' && (
+                            <button
+                              onClick={() => !match.completed && selectWinner(roundIndex, matchIndex, match.player2)}
+                              disabled={match.completed || !match.player1 || match.player1 === 'BYE'}
+                              className={`w-full px-6 py-4 text-left transition-all duration-200 ${
+                                match.winner === match.player2
+                                  ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold'
+                                  : match.completed
+                                  ? 'bg-gray-100 text-gray-400'
+                                  : 'hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 cursor-pointer text-gray-800'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <span>{match.player2}</span>
+                                {match.winner === match.player2 && (
+                                  <Trophy className="w-5 h-5" />
+                                )}
+                              </div>
+                            </button>
+                          )}
+                          
+                          {(!match.player1 || match.player1 === 'BYE') && (!match.player2 || match.player2 === 'BYE') && (
+                            <div className="px-6 py-8 text-center text-gray-400">
+                              Waiting for players...
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
