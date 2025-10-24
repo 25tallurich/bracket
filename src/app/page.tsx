@@ -1,6 +1,8 @@
 "use client"
 import React, { useState, useEffect } from 'react';
-import { ChevronRight, Trophy, Users, Shuffle, Play, X, Plus, Moon, Sun } from 'lucide-react';
+import { ChevronRight, Trophy, Users, Shuffle, Play, X, Plus, Moon, Sun, Share2, History, Loader2 } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+import type { Tournament, Match as DBMatch } from '@/lib/supabase';
 
 // Type definitions
 interface Match {
@@ -50,6 +52,12 @@ const TournamentBracket: React.FC = () => {
   const [isSetupComplete, setIsSetupComplete] = useState<boolean>(false);
   const [currentRound, setCurrentRound] = useState<number>(0);
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
+  const [tournamentId, setTournamentId] = useState<string | null>(null);
+  const [tournamentName, setTournamentName] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(false);
+  const [showHistory, setShowHistory] = useState<boolean>(false);
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [showShareModal, setShowShareModal] = useState<boolean>(false);
 
   // Theme configurations
   const themes: Themes = {
@@ -110,6 +118,15 @@ const TournamentBracket: React.FC = () => {
       if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
         setIsDarkMode(true);
       }
+    }
+  }, []);
+
+  // Check for tournament ID in URL on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get('tournament');
+    if (id) {
+      loadTournament(id);
     }
   }, []);
 
@@ -190,21 +207,190 @@ const TournamentBracket: React.FC = () => {
     setParticipants(participants.filter((_, i) => i !== index));
   };
 
+  // Save tournament to Supabase
+  const saveTournamentToDB = async (bracket: Bracket, name: string): Promise<string | null> => {
+    try {
+      setLoading(true);
+      
+      // Create tournament
+      const { data: tournament, error: tournamentError } = await supabase
+        .from('tournaments')
+        .insert({
+          name: name || 'Untitled Tournament',
+          status: 'in_progress',
+          current_round: 0,
+          total_rounds: bracket.length
+        })
+        .select()
+        .single();
+
+      if (tournamentError) throw tournamentError;
+
+      // Save participants
+      const participantsData = participants.map((name, index) => ({
+        tournament_id: tournament.id,
+        name: name,
+        seed_position: index
+      }));
+
+      const { error: participantsError } = await supabase
+        .from('participants')
+        .insert(participantsData);
+
+      if (participantsError) throw participantsError;
+
+      // Save matches
+      const matchesData: any[] = [];
+      bracket.forEach((round, roundIndex) => {
+        round.forEach((match, matchIndex) => {
+          matchesData.push({
+            tournament_id: tournament.id,
+            round_index: roundIndex,
+            match_index: matchIndex,
+            player1: match.player1,
+            player2: match.player2,
+            winner: match.winner,
+            completed: match.completed,
+            is_bye: match.isBye
+          });
+        });
+      });
+
+      const { error: matchesError } = await supabase
+        .from('matches')
+        .insert(matchesData);
+
+      if (matchesError) throw matchesError;
+
+      return tournament.id;
+    } catch (error) {
+      console.error('Error saving tournament:', error);
+      alert('Failed to save tournament. Please try again.');
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load tournament from Supabase
+  const loadTournament = async (id: string): Promise<void> => {
+    try {
+      setLoading(true);
+
+      // Load tournament
+      const { data: tournament, error: tournamentError } = await supabase
+        .from('tournaments')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (tournamentError) throw tournamentError;
+
+      // Load participants
+      const { data: participantsData, error: participantsError } = await supabase
+        .from('participants')
+        .select('*')
+        .eq('tournament_id', id)
+        .order('seed_position');
+
+      if (participantsError) throw participantsError;
+
+      // Load matches
+      const { data: matchesData, error: matchesError } = await supabase
+        .from('matches')
+        .select('*')
+        .eq('tournament_id', id)
+        .order('round_index')
+        .order('match_index');
+
+      if (matchesError) throw matchesError;
+
+      // Reconstruct bracket
+      const rounds: Bracket = [];
+      const totalRounds = tournament.total_rounds || 0;
+
+      for (let i = 0; i < totalRounds; i++) {
+        const roundMatches = matchesData
+          .filter((m: DBMatch) => m.round_index === i)
+          .map((m: DBMatch) => ({
+            id: m.id,
+            player1: m.player1,
+            player2: m.player2,
+            winner: m.winner,
+            completed: m.completed,
+            isBye: m.is_bye
+          }));
+        rounds.push(roundMatches);
+      }
+
+      setTournamentId(id);
+      setTournamentName(tournament.name);
+      setParticipants(participantsData.map((p) => p.name));
+      setBracket(rounds);
+      setCurrentRound(tournament.current_round);
+      setIsSetupComplete(true);
+    } catch (error) {
+      console.error('Error loading tournament:', error);
+      alert('Failed to load tournament. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Update match in database
+  const updateMatchInDB = async (tournamentId: string, matchId: string, winner: string): Promise<void> => {
+    try {
+      const { error } = await supabase
+        .from('matches')
+        .update({ winner, completed: true })
+        .eq('id', matchId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error updating match:', error);
+    }
+  };
+
+  // Update tournament status
+  const updateTournamentStatus = async (tournamentId: string, status: string, currentRound: number, champion?: string): Promise<void> => {
+    try {
+      const updateData: any = { status, current_round: currentRound };
+      if (champion) updateData.champion = champion;
+
+      const { error } = await supabase
+        .from('tournaments')
+        .update(updateData)
+        .eq('id', tournamentId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error updating tournament:', error);
+    }
+  };
+
   // Start tournament
-  const startTournament = (): void => {
+  const startTournament = async (): Promise<void> => {
     if (participants.length < 2) return;
     
     const realPlayers = participants.filter(p => p !== 'BYE');
     const shuffledPlayers = shuffleArray(realPlayers);
     const newBracket = initializeBracket(shuffledPlayers);
     
-    setBracket(newBracket);
-    setCurrentRound(0);
-    setIsSetupComplete(true);
+    const id = await saveTournamentToDB(newBracket, tournamentName);
+    
+    if (id) {
+      setTournamentId(id);
+      setBracket(newBracket);
+      setCurrentRound(0);
+      setIsSetupComplete(true);
+
+      // Update URL with tournament ID
+      window.history.pushState({}, '', `?tournament=${id}`);
+    }
   };
 
   // Select winner
-  const selectWinner = (roundIndex: number, matchIndex: number, winner: string): void => {
+  const selectWinner = async (roundIndex: number, matchIndex: number, winner: string): Promise<void> => {
     const newBracket = [...bracket];
     const match = newBracket[roundIndex][matchIndex];
     
@@ -213,6 +399,12 @@ const TournamentBracket: React.FC = () => {
     match.winner = winner;
     match.completed = true;
     
+    // Update database
+    if (tournamentId) {
+      await updateMatchInDB(tournamentId, match.id, winner);
+    }
+
+    // Update next round
     if (roundIndex + 1 < newBracket.length) {
       const nextRoundMatchIndex = Math.floor(matchIndex / 2);
       const isFirstPlayer = matchIndex % 2 === 0;
@@ -222,13 +414,38 @@ const TournamentBracket: React.FC = () => {
       } else {
         newBracket[roundIndex + 1][nextRoundMatchIndex].player2 = winner;
       }
+
+      // Update next round match in database
+      if (tournamentId) {
+        const nextMatch = newBracket[roundIndex + 1][nextRoundMatchIndex];
+        await supabase
+          .from('matches')
+          .update({
+            player1: nextMatch.player1,
+            player2: nextMatch.player2
+          })
+          .eq('id', nextMatch.id);
+      }
     }
     
     setBracket(newBracket);
     
+    // Check if round is complete
     const roundComplete = newBracket[roundIndex].every(match => match.completed);
     if (roundComplete && roundIndex + 1 < newBracket.length) {
-      setCurrentRound(roundIndex + 1);
+      const newRound = roundIndex + 1;
+      setCurrentRound(newRound);
+      
+      if (tournamentId) {
+        await updateTournamentStatus(tournamentId, 'in_progress', newRound);
+      }
+    }
+
+    // Check if tournament is complete
+    if (roundIndex === newBracket.length - 1 && match.completed) {
+      if (tournamentId) {
+        await updateTournamentStatus(tournamentId, 'completed', roundIndex, winner);
+      }
     }
   };
 
@@ -237,6 +454,40 @@ const TournamentBracket: React.FC = () => {
     setIsSetupComplete(false);
     setBracket([]);
     setCurrentRound(0);
+    setTournamentId(null);
+    setTournamentName('');
+    window.history.pushState({}, '', window.location.pathname);
+  };
+
+  // Load tournament history
+  const loadTournamentHistory = async (): Promise<void> => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('tournaments')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      if (error) throw error;
+      setTournaments(data || []);
+      setShowHistory(true);
+    } catch (error) {
+      console.error('Error loading history:', error);
+      alert('Failed to load tournament history.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Share tournament
+  const shareTournament = (): void => {
+    if (tournamentId) {
+      const url = `${window.location.origin}${window.location.pathname}?tournament=${tournamentId}`;
+      navigator.clipboard.writeText(url);
+      setShowShareModal(true);
+      setTimeout(() => setShowShareModal(false), 3000);
+    }
   };
 
   // Get round name
@@ -269,6 +520,74 @@ const TournamentBracket: React.FC = () => {
     </button>
   );
 
+  // Loading Spinner
+  if (loading) {
+    return (
+      <div className={`min-h-screen ${theme.background} flex items-center justify-center transition-colors duration-300`}>
+        <div className="text-center">
+          <Loader2 className={`w-16 h-16 ${theme.text} animate-spin mx-auto mb-4`} />
+          <p className={`text-xl ${theme.textSecondary}`}>Loading tournament...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // History Modal
+  if (showHistory) {
+    return (
+      <div className={`min-h-screen ${theme.background} p-4 transition-colors duration-300`}>
+        <ThemeToggle />
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-8">
+            <h1 className={`text-4xl font-bold ${theme.text} mb-4`}>Tournament History</h1>
+            <button
+              onClick={() => setShowHistory(false)}
+              className={`px-6 py-2 bg-gradient-to-r ${theme.buttonSecondary} text-white rounded-xl transition-all shadow-md hover:shadow-lg`}
+            >
+              Back
+            </button>
+          </div>
+
+          <div className={`${theme.card} rounded-2xl shadow-xl p-8 border ${theme.cardBorder}`}>
+            <div className="space-y-4">
+              {tournaments.map((tournament) => (
+                <div
+                  key={tournament.id}
+                  onClick={() => {
+                    setShowHistory(false);
+                    loadTournament(tournament.id);
+                  }}
+                  className={`${theme.participantBg} p-6 rounded-xl ${theme.participantHover} cursor-pointer transition-all`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className={`text-xl font-bold ${theme.text} mb-2`}>{tournament.name}</h3>
+                      <p className={`${theme.textSecondary} text-sm`}>
+                        {new Date(tournament.created_at).toLocaleDateString()} • {tournament.status}
+                      </p>
+                      {tournament.champion && (
+                        <p className={`${theme.textSecondary} text-sm mt-1`}>
+                          🏆 Champion: {tournament.champion}
+                        </p>
+                      )}
+                    </div>
+                    <ChevronRight className={`w-6 h-6 ${theme.textMuted}`} />
+                  </div>
+                </div>
+              ))}
+              {tournaments.length === 0 && (
+                <div className={`text-center py-12 ${theme.textMuted}`}>
+                  <History className="w-16 h-16 mx-auto mb-4 opacity-30" />
+                  <p>No tournament history yet.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Setup page
   if (!isSetupComplete) {
     return (
@@ -281,9 +600,26 @@ const TournamentBracket: React.FC = () => {
             </div>
             <h1 className={`text-5xl font-bold ${theme.text} mb-3`}>Tournament Bracket</h1>
             <p className={`text-xl ${theme.textSecondary}`}>Create your championship journey</p>
+            
+            <button
+              onClick={loadTournamentHistory}
+              className={`mt-4 px-6 py-2 bg-gradient-to-r ${theme.buttonSecondary} text-white rounded-xl transition-all shadow-md hover:shadow-lg flex items-center gap-2 mx-auto`}
+            >
+              <History className="w-5 h-5" />
+              View History
+            </button>
           </div>
           
           <div className={`${theme.card} rounded-2xl shadow-xl p-8 mb-6 border ${theme.cardBorder}`}>
+            <h2 className={`text-2xl font-semibold ${theme.text} mb-6`}>Tournament Details</h2>
+            <input
+              type="text"
+              value={tournamentName}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTournamentName(e.target.value)}
+              placeholder="Tournament Name (optional)"
+              className={`w-full px-4 py-3 mb-6 ${theme.input} border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
+            />
+
             <h2 className={`text-2xl font-semibold ${theme.text} mb-6`}>Add Participants</h2>
             <div className="flex gap-3 mb-6">
               <input
@@ -331,7 +667,7 @@ const TournamentBracket: React.FC = () => {
                 <span className="font-medium">{participants.length} participants</span>
               </div>
               
-              <button
+                              <button
                 onClick={startTournament}
                 disabled={participants.length < 2}
                 className={`flex items-center gap-3 px-8 py-3 bg-gradient-to-r ${theme.buttonSuccess} ${participants.length < 2 ? 'from-gray-300 to-gray-400 cursor-not-allowed' : ''} text-white rounded-xl transition-all shadow-md hover:shadow-lg disabled:shadow-none`}
@@ -350,18 +686,49 @@ const TournamentBracket: React.FC = () => {
   return (
     <div className={`min-h-screen ${theme.background} p-4 transition-colors duration-300`}>
       <ThemeToggle />
+      
+      {/* Share Modal */}
+      {showShareModal && (
+        <div className="fixed top-20 right-4 z-50 animate-fade-in">
+          <div className="bg-green-500 text-white px-6 py-3 rounded-xl shadow-2xl flex items-center gap-2">
+            <Share2 className="w-5 h-5" />
+            Link copied to clipboard!
+          </div>
+        </div>
+      )}
+
       <div className="max-w-full mx-auto">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full shadow-lg mb-4">
             <Trophy className="w-8 h-8 text-white" />
           </div>
-          <h1 className={`text-4xl font-bold ${theme.text} mb-4`}>Tournament Bracket</h1>
-          <button
-            onClick={resetTournament}
-            className={`px-6 py-2 bg-gradient-to-r ${theme.buttonSecondary} text-white rounded-xl transition-all shadow-md hover:shadow-lg`}
-          >
-            Reset Tournament
-          </button>
+          <h1 className={`text-4xl font-bold ${theme.text} mb-2`}>
+            {tournamentName || 'Tournament Bracket'}
+          </h1>
+          <div className="flex items-center justify-center gap-4 mt-4">
+            <button
+              onClick={resetTournament}
+              className={`px-6 py-2 bg-gradient-to-r ${theme.buttonSecondary} text-white rounded-xl transition-all shadow-md hover:shadow-lg`}
+            >
+              New Tournament
+            </button>
+            {tournamentId && (
+              <button
+                onClick={shareTournament}
+                className={`px-6 py-2 bg-gradient-to-r ${theme.buttonPrimary} text-white rounded-xl transition-all shadow-md hover:shadow-lg flex items-center gap-2`}
+              >
+                <Share2 className="w-5 h-5" />
+                Share
+              </button>
+            )}
+            <button
+              onClick={loadTournamentHistory}
+              className={`px-6 py-2 bg-gradient-to-r ${theme.buttonSecondary} text-white rounded-xl transition-all shadow-md hover:shadow-lg flex items-center gap-2`}
+            >
+              <History className="w-5 h-5" />
+              History
+            </button>
+          </div>
         </div>
 
         {champion && (
@@ -469,3 +836,4 @@ const TournamentBracket: React.FC = () => {
 };
 
 export default TournamentBracket;
+                
